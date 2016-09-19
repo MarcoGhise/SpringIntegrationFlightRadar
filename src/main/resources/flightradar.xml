@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:file="http://www.springframework.org/schema/integration/file"
+	xmlns:int-stream="http://www.springframework.org/schema/integration/stream"
+	xmlns:feed="http://www.springframework.org/schema/integration/feed"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration/feed http://www.springframework.org/schema/integration/feed/spring-integration-feed.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/integration/file http://www.springframework.org/schema/integration/file/spring-integration-file.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/integration/stream http://www.springframework.org/schema/integration/stream/spring-integration-stream.xsd">
+
+	<file:inbound-channel-adapter id="fileInboundAdapter" directory="/home/work/SpringBatchFlightRadar/input/" >
+		<int:poller fixed-rate="5000"></int:poller>
+	</file:inbound-channel-adapter>
+	
+	<file:file-to-string-transformer input-channel="fileInboundAdapter" output-channel="toStrings"/>
+	
+	<int:channel id="toStrings"/>
+
+	<int:splitter ref="SplitFile" input-channel="toStrings" output-channel="aggregateOutboundChannel" />
+
+	<bean id="SplitFile" class="it.blog.springintegration.SplitFile" />
+ 
+ 	<int:channel id="aggregateOutboundChannel" />
+ 
+	 <int:recipient-list-router id="customRouter" input-channel="aggregateOutboundChannel">
+		<int:recipient channel="aggregateOutboundChannelFrom"/>
+		<int:recipient channel="aggregateOutboundChannelTo"/>
+	</int:recipient-list-router>
+
+	<int:channel id="aggregateOutboundChannelFrom" />
+	<int:channel id="aggregateOutboundChannelTo" />
+
+ 	<int:chain input-channel="aggregateOutboundChannelFrom" output-channel="FileOutputFrom"> 	
+ 		<int:aggregator ref="flightAggregator" method="aggregateFrom" />
+ 		<int:transformer ref="flightTransformer" ></int:transformer>
+ 	</int:chain>
+
+	<int:chain input-channel="aggregateOutboundChannelTo" output-channel="FileOutputTo"> 	
+ 		<int:aggregator ref="flightAggregator" method="aggregateTo" />
+ 		<int:transformer ref="flightTransformer" ></int:transformer>
+ 	</int:chain>
+ 	 		
+	<bean id="flightAggregator" class="it.blog.springintegration.FlightAggregator" />
+	<bean id="flightTransformer" class="it.blog.springintegration.FlightTransformer" />
+	
+	<file:outbound-channel-adapter 
+			id="FileOutputFrom" 
+			directory="/home/work/SpringBatchFlightRadar/output/" 	
+			filename-generator="nowFileNameGeneratorFrom"					
+	/>
+	
+	<file:outbound-channel-adapter 
+			id="FileOutputTo" 
+			directory="/home/work/SpringBatchFlightRadar/output/" 	
+			filename-generator="nowFileNameGeneratorTo"					
+	/>
+	
+	<bean id="nowFileNameGeneratorFrom" class="it.blog.springintegration.NowFileNameGenerator">
+		<property name="suffix" value="From" />
+	</bean>
+	
+	<bean id="nowFileNameGeneratorTo" class="it.blog.springintegration.NowFileNameGenerator">
+		<property name="suffix" value="To" />
+	</bean>
+
+</beans>
